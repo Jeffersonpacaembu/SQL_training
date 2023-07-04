@@ -1,0 +1,156 @@
+--EJERCICIO 1;
+-- Crear una base de datos con el nombre tarea_ucm
+CREATE DATABASE IF NOT EXISTS TAREA_UCM;
+
+-- Crear un esquema de base de datos con el nombre operaciones_ucm.
+CREATE SCHEMA IF NOT EXISTS operaciones_ucm;
+
+-- Creamos las tres tablas correspondientes a los 3 archivos: orders, refunds y merchants.
+-- Recuerda seleccionar el tipo de dato más adecuado para cada uno de los campos de las tres tablas
+
+CREATE TABLE IF NOT EXISTS ORDERS (
+order_id VARCHAR(50),
+created_at DATE,
+status VARCHAR(50),
+amount FLOAT,
+refunded_at DATE,
+merchant_id VARCHAR(50),
+country VARCHAR(50)
+);
+
+CREATE TABLE IF NOT EXISTS REFUNDS (
+order_id VARCHAR(50),
+refunded_at DATE,
+amount FLOAT
+);
+
+CREATE TABLE IF NOT EXISTS MERCHANTS (
+merchant_id VARCHAR(50),
+name VARCHAR(50)
+);
+
+
+--EJERCICIO 2;
+--Realizamos una consulta donde obtengamos por país y estado de operación, el total de
+--operaciones y su importe promedio. La consulta debe cumplir las siguientes condiciones:
+--a. Operaciones posteriores al 01-07-2015.
+--b. Operaciones realizadas en Francia, Portugal y España.
+--c. Operaciones con un valor mayor de 100 € y menor de 1500€
+
+
+SELECT COUNTRY, STATUS, COUNT(*) as Total_operaciones, AVG(AMOUNT), FROM "TAREA_UCM"."OPERACIONES_UCM"."ORDERS"
+WHERE CREATED_AT >= '2015-07-01' AND COUNTRY IN('Francia','Portugal','España') 
+AND AMOUNT > 100 AND AMOUNT < 1500
+GROUP BY COUNTRY, STATUS
+ORDER BY AVG(AMOUNT) DESC;
+
+-- Consulta donde obtengamos los 3 países con el mayor número de operaciones, el total de operaciones, la operación
+-- con un valor máximo y la operación con el valor mínimo para cada país. La consulta debe cumplir las condiciones:
+--a. Excluimos aquellas operaciones con el estado “Delinquent” y “Cancelled”.
+--b. Operaciones con un valor mayor de 100 €.
+
+SELECT country,
+COUNT(*) AS total_operations,
+MAX(amount) AS max_amount,
+MIN(amount) AS min_amount
+FROM "TAREA_UCM"."OPERACIONES_UCM"."ORDERS"
+WHERE status NOT IN ('DELINQUENT', 'CANCELLED')
+AND amount > 100
+GROUP BY country
+ORDER BY total_operations DESC
+LIMIT 3;
+
+
+--EJERCICIO 3
+--Realizamos una consulta donde obtengamos, por país y comercio, el total de operaciones,
+--su valor promedio y el total de devoluciones. La consulta debe cumplir las siguientes condiciones:
+--a. Se debe mostrar el nombre y el id del comercio.
+--b. Comercios con más de 10 ventas.
+--c. Comercios de Marruecos, Italia, España y Portugal.
+--d. Creamos un campo que identifique si el comercio acepta o no devoluciones. Si no acepta (total de devoluciones
+--es igual a cero) el campo debe contener el valor “No” y si sí lo acepta (total de devoluciones es mayor que cero) el
+--campo debe contener el valor “Sí”. Llamaremos al campo “acepta_devoluciones”.
+--Ordenamos los resultados por el total de operaciones de manera ascendente.
+
+
+SELECT
+    O.country,
+    M.name AS merchant_name,
+    M.merchant_id,
+    COUNT(O.order_id) AS total_operations,
+    AVG(O.amount) AS average_amount,
+    SUM(R.amount) AS total_refunds,
+    CASE
+        WHEN SUM(R.amount) > 0 THEN 'Sí'
+        ELSE 'No'
+    END AS acepta_devoluciones
+FROM
+    "TAREA_UCM"."OPERACIONES_UCM"."ORDERS" AS O
+    JOIN "TAREA_UCM"."OPERACIONES_UCM"."MERCHANTS" AS M ON O.merchant_id = M.merchant_id
+    LEFT JOIN "TAREA_UCM"."OPERACIONES_UCM"."REFUNDS" AS R ON O.order_id = R.order_id
+WHERE
+    O.status NOT IN ('DELINQUENT', 'CANCELLED')
+    AND O.amount > 0
+    AND O.country IN ('Marruecos', 'Italia', 'España', 'Portugal')
+GROUP BY
+    O.country,
+    M.name,
+    M.merchant_id
+HAVING
+    COUNT(O.order_id) > 10
+ORDER BY
+    total_operations ASC;
+
+--Realizamos una consulta donde vamos a traer todos los campos de las tablas operaciones y
+--comercios. De la tabla devoluciones vamos a traer el conteo de devoluciones por operación
+--y la suma del valor de las devoluciones.
+
+SELECT 
+    O.order_id, 
+    O.created_at, 
+    O.status, 
+    O.amount, 
+    O.refunded_at, 
+    O.merchant_id, 
+    O.country,
+    M.name, 
+    R.count_refunds, 
+    R.total_refunded_amount
+FROM 
+    "TAREA_UCM"."OPERACIONES_UCM"."ORDERS" AS O
+    JOIN "TAREA_UCM"."OPERACIONES_UCM"."MERCHANTS" AS M ON O.merchant_id = M.merchant_id
+    LEFT JOIN (
+        SELECT 
+            order_id, 
+            COUNT(*) as count_refunds, 
+            SUM(amount) as total_refunded_amount
+        FROM "TAREA_UCM"."OPERACIONES_UCM"."REFUNDS"
+        GROUP BY order_id
+        ) AS R ON o.order_id = r.order_id;
+
+--Una vez tengamos la consulta anterior, creamos una vista con el nombre orders_view
+--dentro del esquema tarea_ucm con esta consulta
+
+CREATE VIEW IF NOT EXISTS orders_view AS
+SELECT 
+    O.order_id, 
+    O.created_at, 
+    O.status, 
+    O.amount, 
+    O.refunded_at, 
+    O.merchant_id, 
+    O.country,
+    M.name, 
+    R.count_refunds, 
+    R.total_refunded_amount
+FROM 
+    "TAREA_UCM"."OPERACIONES_UCM"."ORDERS" AS O
+    JOIN "TAREA_UCM"."OPERACIONES_UCM"."MERCHANTS" AS M ON O.merchant_id = M.merchant_id
+LEFT JOIN (
+    SELECT 
+        order_id, 
+        COUNT(*) as count_refunds, 
+        SUM(amount) as total_refunded_amount
+    FROM "TAREA_UCM"."OPERACIONES_UCM"."REFUNDS"
+    GROUP BY order_id
+    ) AS R ON o.order_id = r.order_id;
